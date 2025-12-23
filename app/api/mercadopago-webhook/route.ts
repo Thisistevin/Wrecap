@@ -1,0 +1,277 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getRetrospectiveAdmin, updateRetrospectiveAdmin } from '@/lib/db-admin';
+import { updateDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { logger } from '@/lib/logger';
+import crypto from 'crypto';
+
+interface MercadoPagoWebhookPayload {
+  action?: string;
+  api_version?: string;
+  data?: {
+    id?: string;
+  };
+  date_created?: string;
+  id?: number;
+  live_mode?: boolean;
+  type?: string;
+  user_id?: string;
+}
+
+/**
+ * Verifies Mercado Pago webhook signature
+ * @param signature - Signature from x-signature header
+ * @param body - Raw request body
+ * @param secret - Webhook secret from Mercado Pago
+ * @returns boolean indicating if signature is valid
+ */
+function verifyMercadoPagoSignature(
+  signature: string | null,
+  body: string,
+  secret: string
+): boolean {
+  if (!signature || !secret) {
+    return false;
+  }
+
+  try {
+    // Mercado Pago uses HMAC SHA256
+    // Format: sha256=hash
+    const parts = signature.split('=');
+    if (parts.length !== 2 || parts[0] !== 'sha256') {
+      return false;
+    }
+
+    const receivedHash = parts[1];
+    const expectedHash = crypto
+      .createHmac('sha256', secret)
+      .update(body)
+      .digest('hex');
+
+    // Use constant-time comparison to prevent timing attacks
+    return crypto.timingSafeEqual(
+      Buffer.from(receivedHash),
+      Buffer.from(expectedHash)
+    );
+  } catch (error) {
+    logger.error('Error verifying webhook signature:', error);
+    return false;
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    logger.log('📥 Mercado Pago webhook received');
+    
+    const xSignature = request.headers.get('x-signature');
+    const xRequestId = request.headers.get('x-request-id');
+    const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET || '';
+    
+    const body = await request.text();
+    
+    // Verify signature if secret is configured
+    if (webhookSecret) {
+      if (!xSignature || !verifyMercadoPagoSignature(xSignature, body, webhookSecret)) {
+        logger.error('❌ Invalid webhook signature');
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
+      logger.log('✅ Webhook signature verified');
+    } else {
+      logger.warn('⚠️ MERCADOPAGO_WEBHOOK_SECRET not configured, skipping signature verification');
+    }
+    
+    let payload: MercadoPagoWebhookPayload;
+
+    try {
+      payload = JSON.parse(body);
+    } catch (parseError) {
+      logger.error('❌ Failed to parse webhook payload:', parseError);
+      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+    }
+
+    logger.log('📋 Webhook payload:', {
+      type: payload.type,
+      action: payload.action,
+      id: payload.id,
+      dataId: payload.data?.id,
+    });
+
+    // Mercado Pago sends different webhook types
+    // We're interested in payment notifications
+    if (payload.type === 'payment') {
+      const paymentId = payload.data?.id;
+      
+      if (!paymentId) {
+        logger.warn('⚠️ Payment ID not found in webhook');
+        return NextResponse.json({ received: true, status: 'ignored' });
+      }
+
+      // Skip test payment IDs (Mercado Pago sends "123456" for test notifications)
+      // These IDs don't exist in the real API, so we skip them
+      if (paymentId === '123456' || paymentId === '123456789' || String(paymentId).startsWith('123')) {
+        logger.log('ℹ️ Test webhook notification received (ID: ' + paymentId + '), skipping processing');
+        logger.log('💡 This is a test notification. Real payments will have valid payment IDs.');
+        return NextResponse.json({ received: true, status: 'test_notification_ignored' });
+      }
+
+      // Fetch payment details from Mercado Pago API
+      const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+      if (!accessToken) {
+        logger.error('❌ MERCADOPAGO_ACCESS_TOKEN not configured');
+        return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      }
+
+      try {
+        logger.log('🔍 Fetching payment details for ID:', paymentId);
+        const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!paymentResponse.ok) {
+          const errorText = await paymentResponse.text();
+          logger.error('❌ Failed to fetch payment details:', {
+            status: paymentResponse.status,
+            statusText: paymentResponse.statusText,
+            error: errorText,
+          });
+          return NextResponse.json({ received: true, status: 'error_fetching_payment' });
+        }
+
+        const paymentData = await paymentResponse.json();
+        
+        logger.log('💰 Payment details:', {
+          id: paymentData.id,
+          status: paymentData.status,
+          status_detail: paymentData.status_detail,
+          external_reference: paymentData.external_reference,
+        });
+
+        // Check if payment is approved
+        const isApproved = paymentData.status === 'approved' || paymentData.status === 'authorized';
+        
+        logger.log('💳 Payment status check:', {
+          status: paymentData.status,
+          isApproved,
+          external_reference: paymentData.external_reference,
+        });
+        
+        if (isApproved) {
+          // Extract metadata from external_reference
+          let metadata: any = {};
+          const externalRef = paymentData.external_reference;
+          
+          logger.log('📦 External reference:', externalRef);
+          
+          if (externalRef) {
+            try {
+              metadata = JSON.parse(externalRef);
+              logger.log('✅ Parsed metadata:', metadata);
+            } catch (parseError) {
+              logger.error('❌ Failed to parse external_reference:', parseError);
+              // If not JSON, treat as simple string
+              metadata = { userId: externalRef, retrospectiveId: externalRef };
+            }
+          } else {
+            logger.warn('⚠️ No external_reference found in payment data');
+          }
+
+          const userId = metadata.userId;
+          const retrospectiveId = metadata.retrospectiveId;
+          const credits = metadata.credits;
+          const type = metadata.type;
+
+          // Handle credits purchase
+          if (type === 'credits' && userId && credits) {
+            logger.log('🎫 Adding credits to user:', userId);
+            logger.log('🎫 Credits to add:', credits);
+
+            const creditsRef = doc(db, 'credits', userId);
+            const creditsDoc = await getDoc(creditsRef);
+
+            const creditsToAdd = parseInt(credits.toString(), 10);
+
+            if (creditsDoc.exists()) {
+              const currentCredits = creditsDoc.data().credits || 0;
+              await updateDoc(creditsRef, {
+                credits: currentCredits + creditsToAdd,
+              });
+              logger.log('✅ Credits updated:', currentCredits + creditsToAdd);
+            } else {
+              await setDoc(creditsRef, {
+                credits: creditsToAdd,
+              });
+              logger.log('✅ Credits document created with:', creditsToAdd);
+            }
+          } else {
+            logger.warn('⚠️ Credits purchase not processed:', {
+              type,
+              userId,
+              credits,
+              hasType: !!type,
+              hasUserId: !!userId,
+              hasCredits: !!credits,
+              metadata,
+            });
+          }
+
+          // Handle retrospective payment (if needed in the future)
+          if (type === 'retrospective' && retrospectiveId) {
+            logger.log('📝 Processing retrospective payment:', retrospectiveId);
+            
+            const retrospective = await getRetrospectiveAdmin(retrospectiveId);
+            
+            if (retrospective && retrospective.zipFileUrl) {
+              // Trigger retrospective processing
+              const baseUrl = request.nextUrl.origin;
+              const processUrl = `${baseUrl}/api/process-retrospective`;
+              
+              logger.log('🚀 Triggering retrospective processing:', processUrl);
+              
+              fetch(processUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  retrospectiveId,
+                  zipFileUrl: retrospective.zipFileUrl,
+                }),
+              })
+              .then(async (response) => {
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  logger.error('❌ Failed to trigger processing:', response.status, errorText);
+                } else {
+                  logger.log('✅ Processing triggered successfully');
+                }
+              })
+              .catch(err => {
+                logger.error('❌ Background processing error:', err);
+              });
+            }
+          }
+        } else {
+          logger.log('ℹ️ Payment not approved yet:', paymentData.status);
+        }
+      } catch (fetchError) {
+        logger.error('❌ Error fetching payment details:', fetchError);
+        return NextResponse.json({ received: true, status: 'error' }, { status: 500 });
+      }
+    } else {
+      logger.log('ℹ️ Webhook type not handled:', payload.type);
+    }
+
+    return NextResponse.json({ 
+      received: true, 
+      status: 'success',
+    });
+  } catch (error: any) {
+    logger.error('❌ Webhook error:', error);
+    logger.error('❌ Error stack:', error.stack);
+    return NextResponse.json({ 
+      error: error.message || 'Internal server error',
+      received: true,
+    }, { status: 500 });
+  }
+}
+

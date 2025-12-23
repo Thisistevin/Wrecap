@@ -1,0 +1,341 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Mode - Retrospective Palette */
+    /* #146152 (teal), #288020 (green), #B9EF2C (lime), #FFEA35 (yellow), #FF4F22 (orange-red) */
+    --background: 80 40% 96%;
+    --foreground: 160 60% 15%;
+
+    --card: 80 35% 92%;
+    --card-foreground: 160 60% 15%;
+
+    --popover: 80 35% 92%;
+    --popover-foreground: 160 60% 15%;
+
+    /* Orange-Red - Primary (#FF4F22) */
+    --primary: 14 100% 56%;
+    --primary-foreground: 80 40% 96%;
+
+    /* Teal (#146152) */
+    --secondary: 160 66% 31%;
+    --secondary-foreground: 80 40% 96%;
+
+    /* Muted surfaces */
+    --muted: 80 25% 88%;
+    --muted-foreground: 160 20% 40%;
+
+    /* Lime Accent (#B9EF2C) */
+    --accent: 75 86% 55%;
+    --accent-foreground: 160 60% 15%;
+
+    /* Pink stays for profile - derived from palette warmth */
+    --pink: 14 100% 56%;
+    --pink-foreground: 80 40% 96%;
+
+    /* Yellow (#FFEA35) */
+    --yellow: 52 100% 59%;
+    --yellow-foreground: 160 60% 15%;
+
+    /* Green (#288020) */
+    --green: 115 60% 31%;
+    --green-foreground: 80 40% 96%;
+
+    /* Teal for Blue replacement (#146152) */
+    --blue: 160 66% 31%;
+    --blue-foreground: 80 40% 96%;
+
+    /* Coral -> Orange-Red (#FF4F22) */
+    --coral: 14 100% 56%;
+    --coral-foreground: 80 40% 96%;
+
+    /* Lime (#B9EF2C) */
+    --lime: 75 86% 55%;
+    --lime-foreground: 160 60% 15%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 80 20% 80%;
+    --input: 80 20% 80%;
+    --ring: 14 100% 56%;
+
+    --radius: 1rem;
+
+    /* WhatsApp Light Mode */
+    --whatsapp-header: 115 60% 31%;
+    --whatsapp-header-text: 0 0% 100%;
+    --whatsapp-bubble-received: 0 0% 100%;
+    --whatsapp-bubble-sent: 115 50% 85%;
+    --whatsapp-text: 160 60% 15%;
+    --whatsapp-time: 160 20% 50%;
+    --whatsapp-author: 160 66% 31%;
+    --whatsapp-check: 160 66% 31%;
+
+    /* Custom Gradients using new palette */
+    --gradient-hero: linear-gradient(135deg, hsl(14 100% 56%), hsl(52 100% 59%));
+    --gradient-blue: linear-gradient(135deg, hsl(160 66% 31%), hsl(115 60% 31%));
+    --gradient-green: linear-gradient(135deg, hsl(115 60% 31%), hsl(75 86% 55%));
+    --gradient-yellow: linear-gradient(135deg, hsl(52 100% 59%), hsl(75 86% 55%));
+    --gradient-pink: linear-gradient(135deg, hsl(14 100% 56%), hsl(52 100% 59%));
+    --gradient-coral: linear-gradient(135deg, hsl(14 100% 56%), hsl(52 100% 59%));
+
+    /* Fonts */
+    --font-display: 'Archivo Black', sans-serif;
+    --font-body: 'Space Grotesk', sans-serif;
+
+    /* Brand Colors (keeping for compatibility) */
+    --brand-dark: 14 61% 52%; /* #146152 */
+    --brand-green: 28 80% 20%; /* #288020 */
+    --brand-chartreuse: 100 80% 50%; /* #B9EF2C */
+    --brand-yellow: 45 100% 60%; /* #FFEA35 */
+    --brand-orange: 15 100% 55%; /* #FF4F22 */
+  }
+
+  .dark {
+    /* Dark Mode - Retrospective Palette */
+    --background: 160 40% 8%;
+    --foreground: 80 40% 96%;
+
+    --card: 160 30% 12%;
+    --card-foreground: 80 40% 96%;
+
+    --popover: 160 30% 12%;
+    --popover-foreground: 80 40% 96%;
+
+    /* Orange-Red - Primary (#FF4F22) */
+    --primary: 14 100% 60%;
+    --primary-foreground: 80 40% 96%;
+
+    /* Teal (#146152) */
+    --secondary: 160 66% 36%;
+    --secondary-foreground: 80 40% 96%;
+
+    /* Muted dark surfaces */
+    --muted: 160 25% 18%;
+    --muted-foreground: 80 20% 65%;
+
+    /* Lime Accent (#B9EF2C) */
+    --accent: 75 86% 60%;
+    --accent-foreground: 160 60% 15%;
+
+    /* Pink */
+    --pink: 14 100% 60%;
+    --pink-foreground: 80 40% 96%;
+
+    /* Yellow (#FFEA35) */
+    --yellow: 52 100% 62%;
+    --yellow-foreground: 160 60% 15%;
+
+    /* Green (#288020) */
+    --green: 115 60% 38%;
+    --green-foreground: 80 40% 96%;
+
+    /* Teal (#146152) */
+    --blue: 160 66% 38%;
+    --blue-foreground: 80 40% 96%;
+
+    /* Coral */
+    --coral: 14 100% 60%;
+    --coral-foreground: 80 40% 96%;
+
+    /* Lime */
+    --lime: 75 86% 60%;
+    --lime-foreground: 160 60% 15%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 160 20% 25%;
+    --input: 160 20% 25%;
+    --ring: 14 100% 60%;
+
+    /* WhatsApp Dark Mode */
+    --whatsapp-header: 160 30% 18%;
+    --whatsapp-header-text: 80 40% 96%;
+    --whatsapp-bubble-received: 160 30% 22%;
+    --whatsapp-bubble-sent: 115 50% 25%;
+    --whatsapp-text: 80 40% 96%;
+    --whatsapp-time: 80 20% 60%;
+    --whatsapp-author: 75 86% 60%;
+    --whatsapp-check: 160 66% 50%;
+
+    /* Custom Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(14 100% 60%), hsl(52 100% 62%));
+    --gradient-blue: linear-gradient(135deg, hsl(160 66% 38%), hsl(115 60% 38%));
+    --gradient-green: linear-gradient(135deg, hsl(115 60% 38%), hsl(75 86% 60%));
+    --gradient-yellow: linear-gradient(135deg, hsl(52 100% 62%), hsl(75 86% 60%));
+    --gradient-pink: linear-gradient(135deg, hsl(14 100% 60%), hsl(52 100% 62%));
+    --gradient-coral: linear-gradient(135deg, hsl(14 100% 60%), hsl(52 100% 62%));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  @media (min-width: 640px) {
+    html {
+      scroll-snap-type: y mandatory;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    font-family: var(--font-body);
+    overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  .text-gradient-hero {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-blue {
+    background: var(--gradient-blue);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .bg-gradient-blue {
+    background: var(--gradient-blue);
+  }
+
+  .bg-gradient-green {
+    background: var(--gradient-green);
+  }
+
+  .bg-gradient-yellow {
+    background: var(--gradient-yellow);
+  }
+
+  .bg-gradient-pink {
+    background: var(--gradient-pink);
+  }
+
+  .bg-gradient-coral {
+    background: var(--gradient-coral);
+  }
+
+  .section-snap {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  /* Blob Shapes */
+  .blob-shape {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    animation: blob-morph 8s ease-in-out infinite;
+  }
+
+  @keyframes blob-morph {
+    0%, 100% {
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    }
+    50% {
+      border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+    }
+  }
+
+  /* Wiggle */
+  .wiggle {
+    animation: wiggle 1s ease-in-out infinite;
+  }
+
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(-3deg); }
+    50% { transform: rotate(3deg); }
+  }
+
+  /* Card Shine Effect */
+  .card-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent
+    );
+    animation: shine 3s infinite;
+  }
+
+  @keyframes shine {
+    0% { left: -100%; }
+    50%, 100% { left: 100%; }
+  }
+
+  .text-gradient-brand {
+    background-image: linear-gradient(to right, var(--brand-dark), var(--brand-green), var(--brand-chartreuse));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary));
+  border-radius: 10px;
+}
+
+/* Hide scrollbar for snap sections */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+html.dark {
+  color-scheme: dark;
+}
