@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRetrospectiveAdmin, updateRetrospectiveAdmin } from '@/lib/db-admin';
 import { generateRetrospective } from '@/lib/gemini';
-import { adminStorage } from '@/lib/firebase-admin';
+import { initializeAdmin } from '@/lib/firebase-admin';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
@@ -163,7 +163,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload JSON to storage using Firebase Admin SDK
-    if (!adminStorage) {
+    // Ensure Firebase Admin is initialized
+    const { adminStorage: storage } = initializeAdmin();
+    if (!storage) {
       throw new Error('Firebase Admin Storage not initialized. Check your service account configuration.');
     }
     
@@ -173,7 +175,7 @@ export async function POST(request: NextRequest) {
       throw new Error('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET is not set');
     }
     
-    const bucket = adminStorage.bucket(storageBucket);
+    const bucket = storage.bucket(storageBucket);
     
     const jsonPath = `retrospectives/${retrospectiveId}/content.json`;
     const file = bucket.file(jsonPath);
