@@ -40,7 +40,7 @@ export async function createMercadoPagoCheckout(checkout: MercadoPagoCheckout, r
   // Mercado Pago expects unit_price in reais (decimal format)
   // e.g., 7.00 for R$ 7,00, not 700 cents
   // Ensure amount is a valid number
-  const amountValue = typeof checkout.amount === 'number' ? checkout.amount : parseFloat(checkout.amount.toString());
+  const amountValue = Number(checkout.amount);
   
   if (isNaN(amountValue) || amountValue <= 0) {
     throw new Error(`Invalid amount: ${checkout.amount}`);
