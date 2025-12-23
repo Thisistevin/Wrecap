@@ -132,7 +132,7 @@ const ShareDialog = ({ open, onOpenChange }: ShareDialogProps) => {
               </Button>
 
               {/* Native Share (if available) */}
-              {navigator.share && (
+              {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
                 <Button
                   onClick={handleNativeShare}
                   variant="outline"

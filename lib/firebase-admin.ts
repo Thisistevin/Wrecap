@@ -122,16 +122,29 @@ function initializeAdmin() {
   return { adminDb, adminStorage, app };
 }
 
-// Initialize on module load
+// Initialize on module load (lazy initialization)
+// During Vercel build, we skip initialization to avoid build failures
+// Firebase Admin will be initialized when actually needed at runtime
 try {
-  if (projectId && storageBucket) {
+  // Skip initialization during build time
+  // Vercel sets VERCEL=1 during build, but env vars might not be available
+  const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build';
+  
+  // Only initialize if we have all required env vars and not in build
+  if (!isBuildTime && projectId && storageBucket && 
+      (process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
     const services = initializeAdmin();
     adminDb = services.adminDb;
     adminStorage = services.adminStorage;
     app = services.app;
+  } else if (isBuildTime) {
+    // During build, just log that we're skipping initialization
+    logger.log('⏭️ Skipping Firebase Admin initialization during build (will initialize at runtime)');
   }
-  } catch (error) {
-    logger.error('Failed to initialize Firebase Admin SDK:', error);
-  }
+} catch (error) {
+  // Don't fail build if Firebase Admin can't initialize
+  // It will be initialized when actually needed (at runtime via initializeAdmin())
+  logger.error('⚠️ Failed to initialize Firebase Admin SDK (will retry at runtime):', error);
+}
 
 export { adminDb, adminStorage, app, initializeAdmin };
