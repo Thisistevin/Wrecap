@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     
     // Check if this is a test notification (Mercado Pago test notifications may not have valid signatures)
     const isTestNotification = payload.data?.id === '123456' || 
-                               payload.id === '123456' || 
+                               (payload.id !== undefined && String(payload.id) === '123456') || 
                                payload.live_mode === false ||
                                !xSignature;
     
