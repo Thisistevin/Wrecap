@@ -63,3 +63,32 @@ export async function createPhoto(data: Omit<Photo, 'id' | 'createdAt'>): Promis
   return docRef.id;
 }
 
+/**
+ * Initialize credits for a user if they don't exist
+ * Creates a document in the 'credits' collection with 0 credits
+ * @param userId - The user's Firebase Auth UID
+ * @returns Promise<boolean> - true if credits were initialized, false if they already existed
+ */
+export async function initializeUserCredits(userId: string): Promise<boolean> {
+  try {
+    const creditsRef = doc(db, 'credits', userId);
+    const creditsDoc = await getDoc(creditsRef);
+    
+    if (!creditsDoc.exists()) {
+      // User doesn't have a credits document, create one with 0 credits
+      await setDoc(creditsRef, {
+        credits: 0,
+        createdAt: serverTimestamp(),
+      });
+      console.log('✅ Credits initialized for user:', userId);
+      return true;
+    }
+    
+    // User already has credits document
+    return false;
+  } catch (error) {
+    console.error('❌ Error initializing user credits:', error);
+    throw error;
+  }
+}
+

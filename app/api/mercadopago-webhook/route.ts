@@ -129,12 +129,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true, status: 'ignored' });
       }
 
-      // Skip test payment IDs (Mercado Pago sends "123456" for test notifications)
-      // These IDs don't exist in the real API, so we skip them
-      if (paymentId === '123456' || paymentId === '123456789' || String(paymentId).startsWith('123')) {
-        logger.log('ℹ️ Test webhook notification received (ID: ' + paymentId + '), skipping processing');
-        logger.log('💡 This is a test notification. Real payments will have valid payment IDs.');
-        return NextResponse.json({ received: true, status: 'test_notification_ignored' });
+      // Skip test payment IDs ONLY if they don't exist in the API
+      // But first try to fetch them - if they exist, process them
+      // Test notifications from dashboard may have real payment IDs
+      const isTestId = paymentId === '123456' || paymentId === '123456789' || String(paymentId).startsWith('123');
+      if (isTestId) {
+        logger.log('⚠️ Test payment ID detected: ' + paymentId);
+        logger.log('💡 Attempting to fetch payment details to verify if it exists...');
+        // Don't skip immediately - try to fetch first
       }
 
       // Fetch payment details from Mercado Pago API
@@ -178,9 +180,17 @@ export async function POST(request: NextRequest) {
           status: paymentData.status,
           isApproved,
           external_reference: paymentData.external_reference,
+          paymentId: paymentData.id,
         });
         
-        if (isApproved) {
+        // For pending payments (Pix), we should also process if we have metadata
+        // The webhook will be called again when status changes to approved
+        if (isApproved || paymentData.status === 'pending') {
+          logger.log('🔄 Processing payment with status:', paymentData.status);
+          
+          if (paymentData.status === 'pending') {
+            logger.log('⏳ Payment is pending (Pix). Processing credits now, webhook will confirm later.');
+          }
           // Extract metadata from external_reference
           let metadata: any = {};
           const externalRef = paymentData.external_reference;
@@ -209,23 +219,55 @@ export async function POST(request: NextRequest) {
           if (type === 'credits' && userId && credits) {
             logger.log('🎫 Adding credits to user:', userId);
             logger.log('🎫 Credits to add:', credits);
+            logger.log('🎫 Credits type:', typeof credits, 'value:', credits);
 
-            const creditsRef = doc(db, 'credits', userId);
-            const creditsDoc = await getDoc(creditsRef);
+            try {
+              const creditsRef = doc(db, 'credits', userId);
+              const creditsDoc = await getDoc(creditsRef);
 
-            const creditsToAdd = parseInt(credits.toString(), 10);
+              const creditsToAdd = parseInt(credits.toString(), 10);
+              logger.log('🎫 Credits to add (parsed):', creditsToAdd);
 
-            if (creditsDoc.exists()) {
-              const currentCredits = creditsDoc.data().credits || 0;
-              await updateDoc(creditsRef, {
-                credits: currentCredits + creditsToAdd,
+              if (isNaN(creditsToAdd) || creditsToAdd <= 0) {
+                logger.error('❌ Invalid credits value:', creditsToAdd);
+                throw new Error(`Invalid credits value: ${creditsToAdd}`);
+              }
+
+              if (creditsDoc.exists()) {
+                const currentCredits = creditsDoc.data().credits || 0;
+                const newCredits = currentCredits + creditsToAdd;
+                logger.log('📊 Current credits:', currentCredits);
+                logger.log('📊 New credits total:', newCredits);
+                
+                await updateDoc(creditsRef, {
+                  credits: newCredits,
+                });
+                logger.log('✅ Credits updated successfully:', newCredits);
+              } else {
+                logger.log('📝 Creating new credits document for user:', userId);
+                await setDoc(creditsRef, {
+                  credits: creditsToAdd,
+                });
+                logger.log('✅ Credits document created successfully with:', creditsToAdd);
+              }
+              
+              // Verify the update was successful
+              const verifyDoc = await getDoc(creditsRef);
+              if (verifyDoc.exists()) {
+                const verifiedCredits = verifyDoc.data().credits;
+                logger.log('✅ Verification: Credits in Firestore:', verifiedCredits);
+              } else {
+                logger.error('❌ Verification failed: Credits document does not exist after update');
+              }
+            } catch (dbError: any) {
+              logger.error('❌ Error updating credits in Firestore:', dbError);
+              logger.error('❌ Error details:', {
+                message: dbError.message,
+                stack: dbError.stack,
+                userId,
+                credits,
               });
-              logger.log('✅ Credits updated:', currentCredits + creditsToAdd);
-            } else {
-              await setDoc(creditsRef, {
-                credits: creditsToAdd,
-              });
-              logger.log('✅ Credits document created with:', creditsToAdd);
+              throw dbError; // Re-throw to be caught by outer try-catch
             }
           } else {
             logger.warn('⚠️ Credits purchase not processed:', {
@@ -235,6 +277,7 @@ export async function POST(request: NextRequest) {
               hasType: !!type,
               hasUserId: !!userId,
               hasCredits: !!credits,
+              typeMatches: type === 'credits',
               metadata,
             });
           }

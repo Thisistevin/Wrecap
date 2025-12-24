@@ -36,7 +36,25 @@ function initializeAdmin() {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       try {
         logger.log('🔑 Using FIREBASE_SERVICE_ACCOUNT_KEY from environment variable');
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        
+        // Clean the JSON string - remove extra quotes and escape characters
+        let jsonString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+        
+        // Remove surrounding quotes if present
+        if ((jsonString.startsWith('"') && jsonString.endsWith('"')) || 
+            (jsonString.startsWith("'") && jsonString.endsWith("'"))) {
+          jsonString = jsonString.slice(1, -1);
+        }
+        
+        // Try to unescape if double-escaped
+        if (jsonString.includes('\\"')) {
+          jsonString = jsonString.replace(/\\"/g, '"');
+        }
+        
+        // Remove newlines and extra whitespace
+        jsonString = jsonString.replace(/\n/g, '').replace(/\r/g, '').replace(/\s+/g, ' ');
+        
+        const serviceAccount = JSON.parse(jsonString);
         app = initializeApp({
           credential: cert(serviceAccount),
           projectId: projectId,
@@ -45,7 +63,16 @@ function initializeAdmin() {
         logger.log('✅ Firebase Admin initialized with FIREBASE_SERVICE_ACCOUNT_KEY');
       } catch (error: any) {
         logger.error('❌ Error parsing FIREBASE_SERVICE_ACCOUNT_KEY:', error.message);
-        throw new Error(`Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY. Please check the JSON format. Error: ${error.message}`);
+        const errorMsg = 
+          `Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY. Please check the JSON format.\n\n` +
+          `Common issues:\n` +
+          `1. JSON has line breaks - remove all line breaks, keep it as ONE LINE\n` +
+          `2. Extra quotes around JSON - remove quotes at start/end\n` +
+          `3. Double-escaped quotes (\\") - use normal quotes (")\n\n` +
+          `The JSON should look like: {"type":"service_account","project_id":"...",...}\n\n` +
+          `Error details: ${error.message}\n\n` +
+          `See FIX_FIREBASE_KEY_VERCEL.md for detailed instructions.`;
+        throw new Error(errorMsg);
       }
     } 
     // Priority 2: Try GOOGLE_APPLICATION_CREDENTIALS (file path)
