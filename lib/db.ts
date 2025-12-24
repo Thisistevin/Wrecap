@@ -65,7 +65,7 @@ export async function createPhoto(data: Omit<Photo, 'id' | 'createdAt'>): Promis
 
 /**
  * Initialize credits for a user if they don't exist
- * Creates a document in the 'credits' collection with 0 credits
+ * Creates a document in the 'credits' collection with 20 credits for new users
  * @param userId - The user's Firebase Auth UID
  * @returns Promise<boolean> - true if credits were initialized, false if they already existed
  */
@@ -75,12 +75,12 @@ export async function initializeUserCredits(userId: string): Promise<boolean> {
     const creditsDoc = await getDoc(creditsRef);
     
     if (!creditsDoc.exists()) {
-      // User doesn't have a credits document, create one with 0 credits
+      // User doesn't have a credits document, create one with 20 credits (welcome bonus)
       await setDoc(creditsRef, {
-        credits: 0,
+        credits: 20,
         createdAt: serverTimestamp(),
       });
-      console.log('✅ Credits initialized for user:', userId);
+      console.log('✅ Credits initialized for new user:', userId, '- 20 credits added');
       return true;
     }
     

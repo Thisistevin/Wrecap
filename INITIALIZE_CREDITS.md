@@ -16,10 +16,12 @@ Quando um usuário cria uma conta ou faz login pela primeira vez, o sistema agor
 6. Se **não existir**, cria um novo documento com:
    ```json
    {
-     "credits": 0,
+     "credits": 20,
      "createdAt": "timestamp"
    }
    ```
+   
+   **Nota:** Novos usuários recebem **20 créditos** como bônus de boas-vindas.
 
 ### 2. Quando a Página Carrega com Usuário Já Logado
 
@@ -32,7 +34,7 @@ Quando um usuário cria uma conta ou faz login pela primeira vez, o sistema agor
 O documento é criado na coleção `credits` com:
 - **ID do documento:** `userId` (UID do Firebase Auth)
 - **Campos:**
-  - `credits` (number): Quantidade de créditos (inicia com 0)
+  - `credits` (number): Quantidade de créditos (inicia com 20 para novos usuários)
   - `createdAt` (timestamp): Data de criação
 
 ### Exemplo:
@@ -40,7 +42,7 @@ O documento é criado na coleção `credits` com:
 Collection: credits
 Document ID: Oo5qB3dQWmTRiQzlKN6HL5D5jau1
 Fields:
-  credits: 0
+  credits: 20
   createdAt: 2025-12-24T00:00:00Z
 ```
 
@@ -54,7 +56,7 @@ Fields:
    - Verifique no Firebase Console:
      - Firestore → `credits` collection
      - Deve existir um documento com o `userId` do novo usuário
-     - Campo `credits` deve ser `0`
+     - Campo `credits` deve ser `20` (bônus de boas-vindas)
 
 2. **Fazer login com conta existente:**
    - Se a conta já existe mas não tem documento de créditos
@@ -76,7 +78,7 @@ Fields:
 ```typescript
 export async function initializeUserCredits(userId: string): Promise<boolean> {
   // Verifica se o documento existe
-  // Se não existir, cria com 0 créditos
+  // Se não existir, cria com 20 créditos (bônus de boas-vindas)
   // Retorna true se criou, false se já existia
 }
 ```
@@ -90,10 +92,11 @@ export async function initializeUserCredits(userId: string): Promise<boolean> {
 
 ## ✅ Benefícios
 
-1. **Consistência:** Todos os usuários têm um documento de créditos
-2. **Simplicidade:** Não precisa verificar se existe antes de atualizar
-3. **Automático:** Não requer ação manual do usuário
-4. **Seguro:** Não duplica créditos se o documento já existir
+1. **Bônus de Boas-Vindas:** Novos usuários recebem 20 créditos automaticamente
+2. **Consistência:** Todos os usuários têm um documento de créditos
+3. **Simplicidade:** Não precisa verificar se existe antes de atualizar
+4. **Automático:** Não requer ação manual do usuário
+5. **Seguro:** Não duplica créditos se o documento já existir
 
 ## 🔄 Compatibilidade
 
