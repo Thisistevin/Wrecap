@@ -37,40 +37,86 @@ function PaymentSuccessContent() {
     const userId = searchParams.get('userId');
     const credits = searchParams.get('credits');
 
-    // If payment_id is present, the payment was successful
-    if (paymentIdFromUrl && (statusFromUrl === 'approved' || statusFromUrl === null)) {
-      setMessage('Processando pagamento...');
-      
-      // Process payment via API
-      fetch('/api/process-payment-success', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paymentId: paymentIdFromUrl,
-          preferenceId,
-          userId,
-          credits,
-        }),
-      })
-        .then(async (response) => {
-          const data = await response.json();
-          if (response.ok) {
-            setStatus('success');
-            setMessage(`Pagamento processado com sucesso! ${data.credits ? `Você agora tem ${data.credits} créditos.` : ''} Redirecionando...`);
-            setTimeout(() => {
-              router.push('/?creditsSuccess=true');
-            }, 3000);
-          } else {
-            setStatus('error');
-            setMessage(data.error || 'Erro ao processar pagamento. Verifique os logs do servidor.');
-            logger.error('❌ Payment processing error:', data);
-          }
+    // If payment_id is present, try to process (even if pending - Pix can take time)
+    if (paymentIdFromUrl) {
+      // For pending payments (Pix), we can still process if we have userId/credits
+      if (statusFromUrl === 'pending' && userId && credits) {
+        logger.log('⏳ Payment is pending (Pix), processing with userId/credits');
+        setMessage('Pagamento pendente. Processando créditos...');
+        
+        // Process directly with userId/credits (Pix will be confirmed later via webhook)
+        fetch('/api/process-payment-success', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentId: paymentIdFromUrl,
+            preferenceId,
+            userId,
+            credits,
+          }),
         })
-        .catch((error) => {
-          logger.error('❌ Error processing payment:', error);
-          setStatus('error');
-          setMessage('Erro ao processar pagamento. Tente novamente ou verifique os logs.');
-        });
+          .then(async (response) => {
+            const data = await response.json();
+            if (response.ok) {
+              setStatus('success');
+              setMessage(`Créditos adicionados! ${data.credits ? `Você agora tem ${data.credits} créditos.` : ''} O pagamento será confirmado em breve. Redirecionando...`);
+              setTimeout(() => {
+                router.push('/?creditsSuccess=true');
+              }, 3000);
+            } else {
+              // If processing fails, show pending message and redirect
+              setMessage('Pagamento pendente. Os créditos serão adicionados automaticamente quando o pagamento for confirmado.');
+              setTimeout(() => {
+                router.push('/?creditsPending=true');
+              }, 3000);
+            }
+          })
+          .catch((error) => {
+            logger.error('❌ Error processing pending payment:', error);
+            setMessage('Pagamento pendente. Os créditos serão adicionados automaticamente quando o pagamento for confirmado.');
+            setTimeout(() => {
+              router.push('/?creditsPending=true');
+            }, 3000);
+          });
+      } else if (statusFromUrl === 'approved' || statusFromUrl === null) {
+        // Approved payment - process normally
+        setMessage('Processando pagamento...');
+        
+        // Process payment via API
+        fetch('/api/process-payment-success', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentId: paymentIdFromUrl,
+            preferenceId,
+            userId,
+            credits,
+          }),
+        })
+          .then(async (response) => {
+            const data = await response.json();
+            if (response.ok) {
+              setStatus('success');
+              setMessage(`Pagamento processado com sucesso! ${data.credits ? `Você agora tem ${data.credits} créditos.` : ''} Redirecionando...`);
+              setTimeout(() => {
+                router.push('/?creditsSuccess=true');
+              }, 3000);
+            } else {
+              setStatus('error');
+              setMessage(data.error || 'Erro ao processar pagamento. Verifique os logs do servidor.');
+              logger.error('❌ Payment processing error:', data);
+            }
+          })
+          .catch((error) => {
+            logger.error('❌ Error processing payment:', error);
+            setStatus('error');
+            setMessage('Erro ao processar pagamento. Tente novamente ou verifique os logs.');
+          });
+      } else {
+        // Other status (rejected, cancelled, etc.)
+        setStatus('error');
+        setMessage(`Status do pagamento: ${statusFromUrl || 'desconhecido'}`);
+      }
     } else if (!paymentIdFromUrl) {
       // No payment_id in URL, but user might have come from Mercado Pago
       // Try to process using preference_id or userId/credits
@@ -117,10 +163,6 @@ function PaymentSuccessContent() {
           router.push('/');
         }, 2000);
       }
-    } else {
-      // Payment not approved
-      setStatus('error');
-      setMessage(`Status do pagamento: ${statusFromUrl || 'desconhecido'}`);
     }
   }, [searchParams, router]);
 

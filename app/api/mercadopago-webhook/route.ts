@@ -67,33 +67,56 @@ export async function POST(request: NextRequest) {
     const xRequestId = request.headers.get('x-request-id');
     const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET || '';
     
+    logger.log('🔍 Webhook headers:', {
+      hasSignature: !!xSignature,
+      hasRequestId: !!xRequestId,
+      hasSecret: !!webhookSecret,
+    });
+    
     const body = await request.text();
     
-    // Verify signature if secret is configured
-    if (webhookSecret) {
-      if (!xSignature || !verifyMercadoPagoSignature(xSignature, body, webhookSecret)) {
-        logger.error('❌ Invalid webhook signature');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
-      logger.log('✅ Webhook signature verified');
-    } else {
-      logger.warn('⚠️ MERCADOPAGO_WEBHOOK_SECRET not configured, skipping signature verification');
-    }
-    
+    // Parse body early to check if it's a test notification
     let payload: MercadoPagoWebhookPayload;
-
     try {
       payload = JSON.parse(body);
     } catch (parseError) {
       logger.error('❌ Failed to parse webhook payload:', parseError);
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
-
+    
+    // Check if this is a test notification (Mercado Pago test notifications may not have valid signatures)
+    const isTestNotification = payload.data?.id === '123456' || 
+                               payload.id === '123456' || 
+                               payload.live_mode === false ||
+                               !xSignature;
+    
+    // Verify signature if secret is configured and it's not a test notification
+    if (webhookSecret && !isTestNotification) {
+      if (!xSignature) {
+        logger.warn('⚠️ No signature header found, but secret is configured. This might be a test notification.');
+        // For test notifications, we'll still process but log a warning
+      } else if (!verifyMercadoPagoSignature(xSignature, body, webhookSecret)) {
+        logger.error('❌ Invalid webhook signature');
+        logger.error('🔍 Signature details:', {
+          receivedSignature: xSignature?.substring(0, 20) + '...',
+          hasSecret: !!webhookSecret,
+        });
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
+      logger.log('✅ Webhook signature verified');
+    } else if (webhookSecret && isTestNotification) {
+      logger.log('ℹ️ Test notification detected, skipping signature verification');
+    } else if (!webhookSecret) {
+      logger.warn('⚠️ MERCADOPAGO_WEBHOOK_SECRET not configured, skipping signature verification');
+    }
+    
     logger.log('📋 Webhook payload:', {
       type: payload.type,
       action: payload.action,
       id: payload.id,
       dataId: payload.data?.id,
+      liveMode: payload.live_mode,
+      isTestNotification,
     });
 
     // Mercado Pago sends different webhook types

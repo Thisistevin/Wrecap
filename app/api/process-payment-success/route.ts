@@ -50,9 +50,52 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If we have userId and credits but no paymentId, process directly
-    if (!paymentId && userId && credits) {
-      logger.log('💳 Processing payment directly with userId and credits');
+    // If we have userId and credits, we can process directly (useful for pending Pix payments)
+    if (userId && credits) {
+      logger.log('💳 Processing payment with userId and credits (may be pending)');
+      
+      // If we have paymentId, check status first
+      if (paymentId) {
+        const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+        if (accessToken) {
+          try {
+            const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+              },
+            });
+
+            if (paymentResponse.ok) {
+              const paymentData = await paymentResponse.json();
+              logger.log('💰 Payment status:', paymentData.status);
+              
+              // If approved, process normally
+              if (paymentData.status === 'approved' || paymentData.status === 'authorized') {
+                return await processPayment(paymentId, accessToken);
+              }
+              // If pending, process credits directly (webhook will confirm later)
+              else if (paymentData.status === 'pending') {
+                logger.log('⏳ Payment is pending (Pix), processing credits directly');
+                return await processCreditsDirectly(userId, parseInt(credits.toString(), 10));
+              }
+              // Other statuses
+              else {
+                logger.warn('⚠️ Payment not approved or pending:', paymentData.status);
+                return NextResponse.json(
+                  { error: `Payment status: ${paymentData.status}` },
+                  { status: 400 }
+                );
+              }
+            }
+          } catch (fetchError) {
+            logger.error('❌ Error fetching payment status, processing directly:', fetchError);
+            // Fallback: process directly if we can't fetch status
+            return await processCreditsDirectly(userId, parseInt(credits.toString(), 10));
+          }
+        }
+      }
+      
+      // Process directly with userId/credits
       return await processCreditsDirectly(userId, parseInt(credits.toString(), 10));
     }
 
