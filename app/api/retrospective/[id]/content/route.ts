@@ -19,15 +19,10 @@ export async function GET(
 
     logger.log('📥 [retrospective-content] Fetching content for:', retrospectiveId);
 
-    // Ensure Firebase Admin is initialized
-    try {
-      const { adminStorage: storage } = initializeAdmin();
-      if (!storage) {
-        throw new Error('Firebase Admin Storage not initialized');
-      }
-    } catch (initError: any) {
-      logger.error('❌ [retrospective-content] Firebase Admin initialization error:', initError);
-      throw new Error(`Firebase Admin initialization failed: ${initError.message}`);
+    // Ensure Firebase Admin is initialized (only once)
+    const { adminStorage: storage } = initializeAdmin();
+    if (!storage) {
+      throw new Error('Firebase Admin Storage not initialized');
     }
 
     // Get retrospective from Firestore
@@ -45,7 +40,6 @@ export async function GET(
       id: retrospectiveId,
       status: retrospective.status,
       hasTextContentJson: !!retrospective.textContentJson,
-      textContentJson: retrospective.textContentJson,
     });
 
     if (!retrospective.textContentJson) {
@@ -56,26 +50,15 @@ export async function GET(
       );
     }
 
-    // Get JSON from Firebase Storage using Admin SDK
-    // Ensure Firebase Admin is initialized (already done above, but double-check)
-    const { adminStorage: storage } = initializeAdmin();
-    if (!storage) {
-      throw new Error('Firebase Admin Storage not available');
-    }
-
     const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
     if (!storageBucket) {
       throw new Error('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET is not set');
     }
 
-    logger.log('📦 [retrospective-content] Storage bucket:', storageBucket);
-    logger.log('📁 [retrospective-content] File path:', retrospective.textContentJson);
-
     const bucket = storage.bucket(storageBucket);
     const file = bucket.file(retrospective.textContentJson);
 
     // Check if file exists
-    logger.log('🔍 [retrospective-content] Checking if file exists...');
     const [exists] = await file.exists();
     if (!exists) {
       logger.error('❌ [retrospective-content] File does not exist:', retrospective.textContentJson);
@@ -85,13 +68,9 @@ export async function GET(
       );
     }
 
-    logger.log('✅ [retrospective-content] File exists, downloading...');
-
     // Download file content
     const [fileContent] = await file.download();
     const jsonContent = JSON.parse(fileContent.toString('utf-8'));
-
-    logger.log('✅ [retrospective-content] Content fetched successfully, size:', fileContent.length, 'bytes');
 
     // Return JSON with proper CORS headers
     return NextResponse.json(jsonContent, {
